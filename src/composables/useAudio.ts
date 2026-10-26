@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { api } from './useApi'
-import type { AudioDoc, AudioListResponse } from '@/types/api'
+import type { AudioDoc, AudioListResponse, AudioUploadMetadata } from '@/types/api'
 
 export function useAudio() {
   const audios = ref<AudioDoc[]>([])
@@ -26,14 +26,15 @@ export function useAudio() {
 
   async function uploadAudio(
     file: File,
+    metadata: AudioUploadMetadata,
     onProgress?: (pct: number) => void
   ): Promise<void> {
-    // Preserve Angular's audiotitle logic: first word before the first space in the filename
-    const audioTitle = file.name.split(' ')[0]
     const form = new FormData()
+    // Text fields before the file so multer populates req.body before the S3 key callback runs
+    form.append('date', metadata.date)
+    form.append('subTitle', metadata.subTitle)
     form.append('upload', file)
     await api.post('/lectures/audio/daily', form, {
-      headers: { audiotitle: audioTitle },
       onUploadProgress: (evt) => {
         if (evt.total) onProgress?.(Math.round((evt.loaded / evt.total) * 100))
       },

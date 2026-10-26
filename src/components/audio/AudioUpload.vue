@@ -1,13 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Upload, Trash2, RefreshCw } from 'lucide-vue-next'
 import DropZone from '@/components/upload/DropZone.vue'
 import UploadQueue from '@/components/upload/UploadQueue.vue'
+import LectureDateField from '@/components/audio/LectureDateField.vue'
 import { useFileUpload } from '@/composables/useFileUpload'
 import { useAudio } from '@/composables/useAudio'
 import { useAudioStore, AUDIO_PAGE_SIZE } from '@/stores/audio.store'
 import { useToast } from '@/composables/useToast'
 import { formatApiError } from '@/composables/useApi'
+import { formatToday } from '@/utils/lectureDate'
+import {
+  LECTURE_TITLE_MAX,
+  validateLectureTitle,
+} from '@/utils/lectureTitle'
 
 const toast = useToast()
 const { uploadAudio } = useAudio()
@@ -24,19 +30,47 @@ const {
   generatePreview: false,
 })
 
+const lectureDate = ref(formatToday())
+const lectureTitle = ref('')
+const dateValid = ref(true)
+const titleTouched = ref(false)
+
+const fieldClass =
+  'h-11 w-full px-3 text-sm font-sans text-temple-brown bg-white border border-cream-darker rounded-xl placeholder:text-temple-sand focus:outline-none focus:border-saffron focus:ring-2 focus:ring-saffron/20 transition-all'
+
+const titleValidation = computed(() => validateLectureTitle(lectureTitle.value))
+
+const showTitleError = computed(
+  () => titleTouched.value && lectureTitle.value.length > 0 && !titleValidation.value.valid,
+)
+
 const idleItems = computed(() => queue.value.filter(i => i.status === 'idle'))
 const isUploading = computed(() => queue.value.some(i => i.status === 'uploading'))
 
+const canUpload = computed(() => {
+  return (
+    dateValid.value &&
+    lectureDate.value !== '' &&
+    titleValidation.value.valid &&
+    idleItems.value.length > 0 &&
+    !isUploading.value
+  )
+})
+
 async function uploadAll() {
-  if (idleItems.value.length === 0) return
+  titleTouched.value = true
+  if (idleItems.value.length === 0 || !canUpload.value) return
 
   for (const item of idleItems.value) {
     setStatus(item.id, 'uploading', 0)
     try {
-      await uploadAudio(item.file, (pct) => setStatus(item.id, 'uploading', pct))
+      await uploadAudio(
+        item.file,
+        { date: lectureDate.value, subTitle: titleValidation.value.value },
+        (pct) => setStatus(item.id, 'uploading', pct),
+      )
       setStatus(item.id, 'success', 100)
       toast.success('Audio uploaded', item.file.name)
-      // Refresh audio list
       audioStore.load(1, AUDIO_PAGE_SIZE, true)
     } catch (e: unknown) {
       const msg = formatApiError(e)
@@ -49,17 +83,39 @@ async function uploadAll() {
 
 <template>
   <div class="w-full max-w-3xl">
-    <!-- Filename tip -->
-    <div class="mb-4 flex items-start gap-2.5 bg-saffron-50 border border-saffron-100 rounded-xl px-4 py-3">
-      <span class="text-saffron mt-0.5 shrink-0">ℹ</span>
-      <p class="text-xs text-temple-brown font-sans leading-relaxed">
-        The first word of the filename (before the first space) is used as the audio date title.
-        E.g. <span class="font-mono bg-white px-1.5 py-0.5 rounded border border-saffron-100">2025-03-25 Ekadashi Lecture.mp3</span>
-        → title: <span class="font-semibold">2025-03-25</span>
-      </p>
-    </div>
+    <section
+      class="mb-5 overflow-visible rounded-2xl border border-cream-darker/90 bg-white/70 backdrop-blur-sm p-4 sm:p-5 shadow-[0_1px_0_rgba(255,255,255,0.8)_inset]"
+      aria-labelledby="lecture-details-heading"
+    >
+      <h3
+        id="lecture-details-heading"
+        class="mb-4 text-[11px] font-sans font-semibold uppercase tracking-[0.14em] text-saffron"
+      >
+        Lecture details
+      </h3>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(11rem,13.5rem)_1fr] sm:items-start sm:gap-4">
+        <LectureDateField v-model="lectureDate" @valid="dateValid = $event" />
+        <div class="min-w-0">
+          <input
+            id="lecture-title"
+            v-model="lectureTitle"
+            type="text"
+            autocomplete="off"
+            placeholder="Title"
+            :maxlength="LECTURE_TITLE_MAX"
+            :class="[
+              fieldClass,
+              showTitleError ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : '',
+            ]"
+            @blur="titleTouched = true"
+          />
+          <p v-if="showTitleError" class="mt-1.5 text-xs text-red-500 font-sans">
+            {{ titleValidation.message }}
+          </p>
+        </div>
+      </div>
+    </section>
 
-    <!-- Drop zone -->
     <div
       @dragenter="onDragEnter"
       @dragover="onDragOver"
@@ -75,22 +131,19 @@ async function uploadAll() {
       />
     </div>
 
-    <!-- Validation error -->
     <Transition name="fade">
       <p v-if="validationError" class="mt-3 text-sm text-red-500 font-sans bg-red-50 px-4 py-2.5 rounded-lg border border-red-100">
         {{ validationError }}
       </p>
     </Transition>
 
-    <!-- Queue -->
     <UploadQueue :items="queue" @remove="removeFromQueue" />
 
-    <!-- Actions -->
     <Transition name="fade">
       <div v-if="queue.length > 0" class="mt-5 flex items-center gap-3">
         <button
           class="flex items-center gap-2 px-5 py-2.5 bg-saffron-gradient text-white text-sm font-semibold font-sans rounded-xl shadow-temple hover:shadow-temple-lg hover:scale-[1.02] active:scale-100 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:scale-100"
-          :disabled="isUploading || idleItems.length === 0"
+          :disabled="!canUpload"
           @click="uploadAll"
         >
           <span v-if="isUploading" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

@@ -27,6 +27,11 @@ export interface AudioListResponse {
   docs: AudioDoc[]
 }
 
+export interface AudioUploadMetadata {
+  date: string // YYYY-MM-DD
+  subTitle: string
+}
+
 export type UploadStatus = 'idle' | 'uploading' | 'success' | 'error'
 
 export interface UploadQueueItem {
