@@ -62,7 +62,11 @@ export function useFileUpload(opts: UseFileUploadOptions) {
     if (item) {
       item.status = status
       item.progress = progress
-      if (errorMessage) item.errorMessage = errorMessage
+      if (errorMessage !== undefined) {
+        item.errorMessage = errorMessage || undefined
+      } else if (status !== 'error') {
+        item.errorMessage = undefined
+      }
     }
   }
 

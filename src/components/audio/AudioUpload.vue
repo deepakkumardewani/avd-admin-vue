@@ -44,7 +44,9 @@ const showTitleError = computed(
   () => titleTouched.value && lectureTitle.value.length > 0 && !titleValidation.value.valid,
 )
 
-const idleItems = computed(() => queue.value.filter(i => i.status === 'idle'))
+const uploadableItems = computed(() =>
+  queue.value.filter((i) => i.status === 'idle' || i.status === 'error'),
+)
 const isUploading = computed(() => queue.value.some(i => i.status === 'uploading'))
 
 const canUpload = computed(() => {
@@ -52,16 +54,16 @@ const canUpload = computed(() => {
     dateValid.value &&
     lectureDate.value !== '' &&
     titleValidation.value.valid &&
-    idleItems.value.length > 0 &&
+    uploadableItems.value.length > 0 &&
     !isUploading.value
   )
 })
 
 async function uploadAll() {
   titleTouched.value = true
-  if (idleItems.value.length === 0 || !canUpload.value) return
+  if (uploadableItems.value.length === 0 || !canUpload.value) return
 
-  for (const item of idleItems.value) {
+  for (const item of uploadableItems.value) {
     setStatus(item.id, 'uploading', 0)
     try {
       await uploadAudio(

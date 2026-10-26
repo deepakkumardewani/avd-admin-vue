@@ -2,6 +2,9 @@ import { ref } from 'vue'
 import { api } from './useApi'
 import type { AudioDoc, AudioListResponse, AudioUploadMetadata } from '@/types/api'
 
+/** S3 + API can exceed default 60s for ~15 MB on slow links; push runs after response. */
+const AUDIO_UPLOAD_TIMEOUT_MS = 180_000
+
 export function useAudio() {
   const audios = ref<AudioDoc[]>([])
   const total = ref(0)
@@ -35,6 +38,7 @@ export function useAudio() {
     form.append('subTitle', metadata.subTitle)
     form.append('upload', file)
     await api.post('/lectures/audio/daily', form, {
+      timeout: AUDIO_UPLOAD_TIMEOUT_MS,
       onUploadProgress: (evt) => {
         if (evt.total) onProgress?.(Math.round((evt.loaded / evt.total) * 100))
       },

@@ -38,10 +38,17 @@ api.interceptors.response.use(
     const msg = nonEmptyString(data?.msg)
     const message = nonEmptyString(data?.message)
     const errorField = nonEmptyString(data?.error)
+    const isTimeout =
+      err.code === 'ECONNABORTED' ||
+      (typeof err.message === 'string' && err.message.includes('timeout'))
+
     const display =
       msg ??
       message ??
       errorField ??
+      (isTimeout
+        ? 'Upload timed out. The file may still have uploaded — check View Audios or try again.'
+        : undefined) ??
       nonEmptyString(err.message) ??
       'Network error'
 
