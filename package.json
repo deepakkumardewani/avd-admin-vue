@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "./scripts/deploy.sh",
+    "deploy:interactive": "DEPLOY_SSH_INTERACTIVE=1 ./scripts/deploy.sh"
   },
   "dependencies": {
     "axios": "^1.7.0",
